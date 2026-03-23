@@ -5,12 +5,12 @@ const config = {
   navbar: (
     <Navbar
       logo={<span>SQL Performance</span>}
-      projectLink="https://github.com/shuding/nextra-docs-template"
+      projectLink="https://github.com/olsove/miniature-memory"
       chatLink="https://discord.com"
     />
   ),
-  docsRepositoryBase: 'https://github.com/shuding/nextra-docs-template',
-  footer: <span>Nextra Docs Template</span>,
+  docsRepositoryBase: 'https://github.com/olsove/miniature-memory',
+  footer: <span>SQL Performance</span>,
 }
 
 export default config
