@@ -1,0 +1,33 @@
+{
+  "name": "sql-performance",
+  "version": "0.0.1",
+  "description": "My site about sql performace written using Nextra and Mdx",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shuding/nextra-docs-template.git"
+  },
+  "author": "Ove Olsen",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/shuding/nextra-docs-template/issues"
+  },
+  "homepage": "https://github.com/shuding/nextra-docs-template#readme",
+  "dependencies": {
+    "next": "15.2.1",
+    "nextra": "latest",
+    "nextra-theme-docs": "latest",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "25.5.0",
+    "@types/react": "^19.2.4",
+    "typescript": "^5.7.0"
+  }
+}
