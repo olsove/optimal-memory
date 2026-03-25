@@ -42,7 +42,7 @@ export default function DocsLayout({
     <SidebarLayout>
       {/* Left Sidebar Provider */}
       <SidebarProvider
-        defaultOpen={isMobile ? false : true}
+        defaultOpen={!isMobile}
         defaultSide="left"
         defaultMaxWidth={280}
         showIconsOnCollapse={true}
