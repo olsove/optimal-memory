@@ -102,7 +102,7 @@ export default function DocsLayout({
                 Ove Olsen
               </span>
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                a@b.com
+
               </span>
             </div>
           </SidebarFooter>
