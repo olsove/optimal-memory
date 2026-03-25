@@ -1,0 +1,135 @@
+---
+title: Filter before joining large tables
+description: Try to make the dataset smaller before joining.
+---
+
+# Filter before Joining large tables
+
+## Slow<Turtle strokeWidth={1.75} />
+
+```sql
+SELECT *
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.id
+JOIN customers c ON c.id = o.customer_id
+WHERE c.region = 'NO';
+```
+
+---
+
+## Fast <Rabbit strokeWidth={1.75}/>
+
+Filter first:
+
+```sql
+SELECT *
+FROM orders
+WHERE status = 'SHIPPED';
+```
+
+Then join the reduced dataset.
+
+---
+
+## Why <Search strokeWidth={1.75}/>
+
+Large joins create huge intermediate results.
+Reducing rows early avoids:
+
+- Memory pressure
+- Hash joins
+- Temp files
+
+---
+
+## Typical Improvement <Settings strokeWidth={1.75}/>
+
+`5x-50x`
+
+---
+
+## Best Use Cases <BookOpen strokeWidth={1.75}/>
+
+- Reporting
+- Analytics queries
+- Order/item/customer joins
+- Multi-table search endpoints
+
+## Test it out yourself <TestTubeDiagonal strokeWidth={1.75}/>
+
+### 1. Set up Docker Database
+Run a local Docker instance with PostgreSQL 18:
+
+```bash
+docker run --name pg18-test -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:18-alpine
+```
+
+### 2. Create Schema and Sample Data
+Run this script to create the tables and generate sample data:
+> User: postgres
+> Password: postgres
+
+```sql
+CREATE TABLE customers (
+    id SERIAL PRIMARY KEY,
+    name TEXT,
+    region TEXT
+);
+
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    customer_id INT REFERENCES customers(id),
+    status TEXT,
+    created_at TIMESTAMP
+);
+
+CREATE TABLE order_items (
+    id SERIAL PRIMARY KEY,
+    order_id INT REFERENCES orders(id),
+    product_id INT,
+    quantity INT
+);
+
+-- Generate data
+INSERT INTO customers (name, region)
+SELECT 'Customer ' || i, CASE WHEN i % 10 = 0 THEN 'NO' ELSE 'US' END
+FROM generate_series(1, 10000) i;
+
+INSERT INTO orders (customer_id, status, created_at)
+SELECT (random() * 9999 + 1)::int, CASE WHEN random() < 0.2 THEN 'SHIPPED' ELSE 'PENDING' END, NOW()
+FROM generate_series(1, 100000);
+
+INSERT INTO order_items (order_id, product_id, quantity)
+SELECT (random() * 99999 + 1)::int, (random() * 1000)::int, (random() * 5 + 1)::int
+FROM generate_series(1, 500000);
+
+CREATE INDEX idx_customers_region ON customers(region);
+CREATE INDEX idx_orders_customer_id ON orders(customer_id);
+CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_order_items_order_id ON order_items(order_id);
+```
+
+### 3. Test the Performance
+
+#### Slow (Join all, then filter) <Turtle strokeWidth={1.75} />
+Joining everything before filtering can be slower if the join produces many intermediate rows.
+```sql
+EXPLAIN ANALYZE
+SELECT *
+FROM customers c
+JOIN orders o ON c.id = o.customer_id
+JOIN order_items oi ON o.id = oi.order_id
+WHERE c.region = 'NO';
+```
+
+#### Fast (Filter early) <Rabbit strokeWidth={1.75}/>
+Applying restrictive filters (like `status = 'SHIPPED'`) as early as possible reduces the data being joined.
+```sql
+EXPLAIN ANALYZE
+SELECT *
+FROM customers c
+JOIN orders o ON c.id = o.customer_id
+JOIN order_items oi ON o.id = oi.order_id
+WHERE c.region = 'NO'
+  AND o.status = 'SHIPPED';
+```

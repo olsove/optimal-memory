@@ -1,0 +1,141 @@
+---
+title: Avoid unnecessary query layers.
+description: Give the planner more optimisation freedom.
+---
+
+# Avoid unnecessary query layers
+
+## Slow <Turtle strokeWidth={1.75} />
+
+```sql
+WITH recent_orders AS (
+  SELECT *
+  FROM orders
+  WHERE created_at >= '2026-01-01'
+)
+SELECT *
+FROM recent_orders
+WHERE status = 'SHIPPED';
+```
+
+---
+
+## Fast <Rabbit strokeWidth={1.75}/>
+
+Write the filter in one query:
+
+```sql
+SELECT *
+FROM orders
+WHERE created_at >= '2026-01-01'
+  AND status = 'SHIPPED';
+```
+
+---
+
+## Why <Search strokeWidth={1.75}/>
+
+Extra query layers can cause PostgreSQL to process more rows than necessary.
+A simpler query gives the planner more optimisation freedom.
+
+---
+
+## Typical Improvement <Settings strokeWidth={1.75}/>
+
+`2x-10x`
+
+---
+
+## Best Use Cases <BookOpen strokeWidth={1.75}/>
+
+- Reporting queries
+- Analytics queries
+- Complex ORM-generated SQL
+- Layered SQL views
+
+## Test it out yourself <TestTubeDiagonal strokeWidth={1.75}/>
+
+### 1. Set up Docker Database
+Run a local Docker instance with PostgreSQL 18:
+
+```bash
+docker run --name pg18-test -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:18-alpine
+```
+
+### 2. Create Schema and Sample Data
+Run this script to create the `orders` table and generate sample data:
+> User: postgres
+> Password: postgres
+
+```sql
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    status TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    total DECIMAL(10,2)
+);
+
+-- Generate 1,000,000 orders
+INSERT INTO orders (status, created_at, total)
+SELECT
+    CASE WHEN random() < 0.1 THEN 'SHIPPED' ELSE 'PENDING' END,
+    NOW() - (random() * interval '365 days'),
+    (random() * 1000)::numeric(10,2)
+FROM generate_series(1, 1000000);
+
+CREATE INDEX idx_orders_status_created ON orders(status, created_at);
+```
+
+### 3. Test the Performance
+
+#### Slow (CTE / Layered) <Turtle strokeWidth={1.75} />
+While PostgreSQL's optimiser can often "inline" simple CTEs (making them perform identically to flattened queries), unnecessary layers still add overhead to the **planning** phase and can sometimes block more advanced optimisations in complex scenarios.
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+WITH recent_orders AS (
+    SELECT *
+    FROM orders
+    WHERE created_at >= '2026-01-01'
+)
+SELECT *
+FROM recent_orders
+WHERE status = 'SHIPPED';
+
+/*
+QUERY PLAN
+Bitmap Heap Scan on orders  (cost=599.77..8303.04 rows=23351 width=26) (actual time=2.308..7.140 rows=22995.00 loops=1)
+  Recheck Cond: ((status = 'SHIPPED'::text) AND (created_at >= '2026-01-01 00:00:00'::timestamp without time zone))
+  Heap Blocks: exact=7042
+  Buffers: shared hit=7042 read=91
+  ->  Bitmap Index Scan on idx_orders_status_created  (cost=0.00..593.93 rows=23351 width=0) (actual time=1.694..1.695 rows=22995.00 loops=1)
+        Index Cond: ((status = 'SHIPPED'::text) AND (created_at >= '2026-01-01 00:00:00'::timestamp without time zone))
+        Buffers: shared read=91
+Planning Time: 0.217 ms
+Execution Time: 7.695 ms
+*/
+```
+
+#### Fast (Flattened Query) <Rabbit strokeWidth={1.75}/>
+A flattened query is easier for the engine to parse and plan. It reduces the number of "moving parts" the optimiser must evaluate.
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT *
+FROM orders
+WHERE created_at >= '2026-01-01'
+  AND status = 'SHIPPED';
+
+/*
+QUERY PLAN
+Bitmap Heap Scan on orders  (cost=599.77..8303.04 rows=23351 width=26) (actual time=1.842..6.655 rows=22995.00 loops=1)
+  Recheck Cond: ((status = 'SHIPPED'::text) AND (created_at >= '2026-01-01 00:00:00'::timestamp without time zone))
+  Heap Blocks: exact=7042
+  Buffers: shared hit=7133
+  ->  Bitmap Index Scan on idx_orders_status_created  (cost=0.00..593.93 rows=23351 width=0) (actual time=1.224..1.224 rows=22995.00 loops=1)
+        Index Cond: ((status = 'SHIPPED'::text) AND (created_at >= '2026-01-01 00:00:00'::timestamp without time zone))
+        Buffers: shared hit=91
+Planning Time: 0.080 ms
+Execution Time: 7.208 ms
+*/
+```

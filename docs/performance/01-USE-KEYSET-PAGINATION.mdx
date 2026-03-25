@@ -1,0 +1,139 @@
+---
+title: Use Keyset Pagination Instead of Offset
+description: Keyset pagination will improve your queries.
+---
+
+# Use keyset pagination instead of offset
+
+## Slow <Turtle strokeWidth={1.75} />
+
+```sql
+SELECT id, created_at, total
+FROM orders
+ORDER BY created_at DESC
+LIMIT 50 OFFSET 50000;
+```
+
+---
+
+## Fast <Rabbit strokeWidth={1.75}/>
+
+```sql
+SELECT id, created_at, total
+FROM orders
+WHERE created_at < '2026-03-16 10:30:00'
+ORDER BY created_at DESC
+LIMIT 50;
+```
+## Fast (Stable tiebreaking) <Rabbit strokeWidth={1.75}/>
+
+Create this composite index:
+```sql
+CREATE INDEX idx_orders_created_id ON orders (created_at DESC, id DESC);
+```
+
+And use the query:
+```sql
+SELECT id, created_at, total
+FROM orders
+WHERE (created_at, id) < ('2026-03-16 10:30:00', 987654)
+ORDER BY created_at DESC, id DESC
+LIMIT 50;
+```
+
+
+---
+
+## Why <Search strokeWidth={1.75}/>
+
+`OFFSET` forces PostgreSQL to scan and discard rows.
+
+Keyset pagination lets PostgreSQL jump directly into the index.
+
+Without the index `idx_orders_created_id`, the database would have to perform a full table scan, defeating the purpose of the optimisation.
+
+### Why "Stable Tiebreaking"?
+Pagination based on a non-unique column (like `created_at`) is "unstable."
+
+If 100 orders were created at the exact same millisecond, and your page size is 50, a simple `WHERE created_at < ...` could cause you to skip or repeat records when moving to the next page.
+
+By adding the unique id to both the `WHERE` clause and the `ORDER BY` clause:
+• Uniqueness: Every row has a deterministic position in the result set.
+• Precision: You can tell the database exactly where the previous page ended, even if multiple rows share the same timestamp.
+
+---
+
+## Typical improvement <Settings strokeWidth={1.75}/>
+
+`10x-100x`
+
+This is one of the easiest ways to get `10x` or much more on large tables.
+
+---
+
+## Best use cases <BookOpen strokeWidth={1.75}/>
+
+- APIs
+- Admin screens
+- Event feeds
+- Transaction history
+
+---
+
+## Test it out yourself <TestTubeDiagonal strokeWidth={1.75}/>
+
+### 1. Set up Docker Database
+Run a local Docker instance with PostgreSQL 18 to have a database engine to test it with:
+
+```bash
+docker run --name pg18-test -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:18-alpine
+```
+
+### 2. Create Schema and Sample Data
+Connect to your database via IntelliJ IDEA and run the following script to create a table, index and generate 1 million rows:
+> User: postgres
+> Password: postgres
+
+```sql
+-- Create table
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    created_at TIMESTAMP NOT NULL,
+    total DECIMAL(10,2) NOT NULL
+);
+
+-- Add the critical index for keyset pagination
+CREATE INDEX idx_orders_created_id ON orders (created_at DESC, id DESC);
+
+-- Generate 1,000,000 rows
+INSERT INTO orders (created_at, total)
+SELECT
+    NOW() - (random() * interval '365 days'),
+    (random() * 1000)::numeric(10,2)
+FROM generate_series(1, 1000000);
+```
+
+### 3. Test the Performance
+In IntelliJ IDEA, run these two queries with `EXPLAIN ANALYZE` to see the difference in execution time and scan strategy.
+
+#### Slow (Offset) <Turtle strokeWidth={1.75} />
+Note how `Execution Time` increases as you go deeper into the pages.
+```sql
+EXPLAIN ANALYZE
+SELECT id, created_at, total
+FROM orders
+ORDER BY created_at DESC
+LIMIT 50 OFFSET 50000;
+```
+
+#### Fast (Keyset) <Rabbit strokeWidth={1.75}/>
+This query will jump directly to the index entry, regardless of how deep you are.
+```sql
+-- Assuming 2026-03-16 10:30:00 and 987654 were the values from your last row
+EXPLAIN ANALYZE
+SELECT id, created_at, total
+FROM orders
+WHERE (created_at, id) < ('2026-03-16 10:30:00', 987654)
+ORDER BY created_at DESC, id DESC
+LIMIT 50;
+```

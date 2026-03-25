@@ -1,0 +1,93 @@
+---
+title: Performance cheats
+description: Avoid making these mistakes in your production code.
+---
+
+# Performance cheats
+
+---
+
+## The goal
+
+Most slow queries happen because they:
+
+- Scan too many rows
+- Sort too many rows
+- Repeat the same work many times
+- Prevent index usage
+
+Fixing the query shape usually gives the biggest improvement.
+
+---
+
+## Performance actions
+
+I tried to categorise the queries into 10 groups based on the above factors.
+
+I want to share them with you so you can avoid making the same mistakes I have made.  <Smile strokeWidth={1.75}/>
+
+Take a look at the subpages below for insight in how to write better queries:
+
+01. [Use keyset pagination instead of offset](/docs/performance/01-USE-KEYSET-PAGINATION)
+02. [Replace correlated sub-queries with aggregation + join](/docs/performance/02-REPLACE-CORRELATED-SUBQUERIES)
+03. [Write index-friendly predicates](/docs/performance/03-INDEX-FRIENDLY-PREDICATES)
+04. [Match indexes to real query patterns](/docs/performance/04-MATCH-INDEXES-QUERY-PATTERN)
+05. [Filter before joining large tables](/docs/performance/05-FILTER-BEFORE-JOIN)
+06. [Avoid `SELECT *` on large tables](/docs/performance/06-AVOID-SELECT-ALL-COLUMNS)
+07. [Avoid broad `OR` predicates](/docs/performance/07-AVOID-OR-PREDICATES)
+08. [Replace row-by-row updates with set-based operations](/docs/performance/08-REPLACE-SINGLE-ROW-UPDATES-WITH-SET)
+09. [Avoid unnecessary query layers](/docs/performance/09-AVOID-UNNECESSARY-QUERY-LAYERS)
+10. [Aggregate and sort on less data](/docs/performance/10-AGGREGATE-SORT-LESS-DATA)
+
+---
+
+## Why these hurt more in Google Cloud SQL
+
+In self-managed PostgreSQL you can sometimes compensate with server tuning.
+
+In Cloud SQL, you have less control over:
+
+- Disk configuration
+- I/O scheduling
+- OS tuning
+- Memory internals
+
+So inefficient queries quickly cause:
+
+- I/O saturation
+- Temp file spills
+- CPU bottlenecks
+- Larger instance requirements
+
+Which means higher cost and worse performance.
+
+---
+
+## Mental model for tuning
+
+When a PostgreSQL query is slow, ask:
+
+1. Can I avoid scanning rows I do not need?
+2. Can I avoid sorting rows I do not need?
+3. Can I avoid repeating the same work per row?
+4. Can I make the predicate index-friendly?
+5. Can I reduce the dataset before joining?
+
+If the answer is yes to even one of those, there is often a big win available.
+
+---
+
+## Quick checklist
+
+When reviewing a system, ask:
+
+- Are queries using `OFFSET` pagination?
+- Are indexed columns wrapped in functions?
+- Do indexes match `WHERE + ORDER BY + LIMIT`?
+- Are there correlated sub-queries?
+- Are large joins happening before filtering?
+- Are queries selecting unnecessary columns?
+- Is the query indexing the right columns?
+- Is the query avoiding unnecessary `OR` predicates?
+
+Fixing just one of these issues often explains most performance problems.

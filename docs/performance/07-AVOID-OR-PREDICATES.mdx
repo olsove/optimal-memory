@@ -1,0 +1,166 @@
+---
+title: Avoid broad OR predicates.
+description: Split the query to allow for better plans.
+---
+
+# Avoid broad `OR` predicates
+
+## Slow <Turtle strokeWidth={1.75} />
+
+Using `OR` for multiple independent filters with a `LIMIT`:
+
+```sql
+SELECT *
+FROM tickets
+WHERE status = 'OPEN'
+   OR assigned_to = 123
+   OR priority = 'HIGH'
+LIMIT 50;
+```
+
+---
+
+## Fast <Rabbit strokeWidth={1.75}/>
+
+Using `UNION ALL` with `LIMIT` allows PostgreSQL to stop scanning as soon as the limit is satisfied (early termination):
+
+```sql
+(SELECT * FROM tickets WHERE status = 'OPEN' LIMIT 50)
+UNION ALL
+(SELECT * FROM tickets WHERE assigned_to = 123 AND status <> 'OPEN' LIMIT 50)
+UNION ALL
+(SELECT * FROM tickets WHERE priority = 'HIGH' AND status <> 'OPEN' AND (assigned_to <> 123 OR assigned_to IS NULL) LIMIT 50)
+LIMIT 50;
+```
+
+---
+
+## Why <Search strokeWidth={1.75}/>
+
+1. **Non-Pipelined vs Pipelined**: `BitmapOr` must finish **all** index scans and bitwise operations before it can return the first row. `UNION ALL` can stop as soon as it satisfies the `LIMIT`.
+2. **Optimizer Freedom**: Large `OR` predicates often force the planner to use `BitmapOr`. Splitting the query allows PostgreSQL to use more efficient `Index Scan` paths for each branch.
+
+---
+
+## Typical Improvement <Settings strokeWidth={1.75}/>
+
+`3x-30x`
+
+---
+
+## Best Use Cases <BookOpen strokeWidth={1.75}/>
+
+- Search APIs with multiple filters
+- Ticket or issue tracking systems
+- CRM search queries
+- Advanced filtering in dashboards
+
+## Test it out yourself <TestTubeDiagonal strokeWidth={1.75}/>
+
+### 1. Set up Docker Database
+Run a local Docker instance with PostgreSQL 18:
+
+```bash
+docker run --name pg18-test -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:18-alpine
+```
+
+### 2. Create Schema and Sample Data
+Run this script to create the `tickets` table and generate sample data:
+> User: postgres
+> Password: postgres
+
+```sql
+CREATE TABLE tickets (
+    id SERIAL PRIMARY KEY,
+    status TEXT NOT NULL,
+    assigned_to INT,
+    priority TEXT NOT NULL,
+    description TEXT
+);
+
+-- Generate 1,000,000 tickets with sparse matching data
+INSERT INTO tickets (status, assigned_to, priority, description)
+SELECT
+    CASE WHEN random() < 0.001 THEN 'OPEN' ELSE 'CLOSED' END,
+    (random() * 100000 + 1)::int,
+    CASE WHEN random() < 0.0005 THEN 'HIGH' ELSE 'NORMAL' END,
+    'Ticket description ' || i
+FROM generate_series(1, 1000000) i;
+
+CREATE INDEX idx_tickets_status ON tickets(status);
+CREATE INDEX idx_tickets_assigned_to ON tickets(assigned_to);
+CREATE INDEX idx_tickets_priority ON tickets(priority);
+ANALYZE tickets;
+```
+
+### 3. Test the Performance
+
+#### Slow (Broad OR with LIMIT) <Turtle strokeWidth={1.75} />
+If your data is dense, a `Seq Scan` with early termination might be fast. However, as the table grows or filters become more selective, the engine often falls back to a **non-pipelined** `BitmapOr` (which must finish all index scans before returning any rows) or a full `Seq Scan`.
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT *
+FROM tickets
+WHERE status = 'OPEN'
+   OR assigned_to = 123
+   OR priority = 'HIGH'
+LIMIT 50;
+/*
+QUERY PLAN
+Limit  (cost=32.50..160.86 rows=50 width=45) (actual time=0.396..0.436 rows=50.00 loops=1)
+  Buffers: shared hit=44 read=10
+  ->  Bitmap Heap Scan on tickets  (cost=32.50..4766.70 rows=1844 width=45) (actual time=0.394..0.432 rows=50.00 loops=1)
+        Recheck Cond: ((status = 'OPEN'::text) OR (assigned_to = 123) OR (priority = 'HIGH'::text))
+        Heap Blocks: exact=43
+        Buffers: shared hit=44 read=10
+        ->  BitmapOr  (cost=32.50..32.50 rows=1844 width=0) (actual time=0.250..0.251 rows=0.00 loops=1)
+              Buffers: shared read=10
+              ->  Bitmap Index Scan on idx_tickets_status  (cost=0.00..17.93 rows=1267 width=0) (actual time=0.183..0.183 rows=1044.00 loops=1)
+                    Index Cond: (status = 'OPEN'::text)
+                    Buffers: shared read=4
+              ->  Bitmap Index Scan on idx_tickets_assigned_to  (cost=0.00..4.51 rows=11 width=0) (actual time=0.026..0.026 rows=13.00 loops=1)
+                    Index Cond: (assigned_to = 123)
+                    Buffers: shared read=3
+              ->  Bitmap Index Scan on idx_tickets_priority  (cost=0.00..8.68 rows=567 width=0) (actual time=0.040..0.040 rows=505.00 loops=1)
+                    Index Cond: (priority = 'HIGH'::text)
+                    Buffers: shared read=3
+Execution Time: 0.484 ms
+*/
+```
+
+#### Fast (UNION ALL with LIMIT) <Rabbit strokeWidth={1.75}/>
+This query uses `Append`, which is **pipelined**. It processes the sub-queries one by one and stops as soon as it hits the global `LIMIT 50`.
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+(SELECT * FROM tickets WHERE status = 'OPEN' LIMIT 50)
+UNION ALL
+(SELECT * FROM tickets WHERE assigned_to = 123 AND status <> 'OPEN' LIMIT 50)
+UNION ALL
+(SELECT * FROM tickets WHERE priority = 'HIGH' AND status <> 'OPEN' AND (assigned_to <> 123 OR assigned_to IS NULL) LIMIT 50)
+LIMIT 50;
+/*
+QUERY PLAN
+Limit  (cost=0.42..24.81 rows=50 width=45) (actual time=0.010..0.042 rows=50.00 loops=1)
+  Buffers: shared hit=51
+  ->  Append  (cost=0.42..54.56 rows=111 width=45) (actual time=0.009..0.039 rows=50.00 loops=1)
+        Buffers: shared hit=51
+        ->  Limit  (cost=0.42..3.16 rows=50 width=45) (actual time=0.009..0.036 rows=50.00 loops=1)
+              Buffers: shared hit=51
+              ->  Index Scan using idx_tickets_status on tickets  (cost=0.42..69.75 rows=1267 width=45) (actual time=0.009..0.034 rows=50.00 loops=1)
+                    Index Cond: (status = 'OPEN'::text)
+                    Buffers: shared hit=51
+        ->  Limit  (cost=4.51..47.59 rows=11 width=45) (never executed)
+              ->  Bitmap Heap Scan on tickets tickets_1  (cost=4.51..47.59 rows=11 width=45) (never executed)
+                    Recheck Cond: (assigned_to = 123)
+                    Filter: (status <> 'OPEN'::text)
+                    ->  Bitmap Index Scan on idx_tickets_assigned_to  (cost=0.00..4.51 rows=11 width=0) (never executed)
+                          Index Cond: (assigned_to = 123)
+        ->  Limit  (cost=0.42..3.25 rows=50 width=45) (never executed)
+              ->  Index Scan using idx_tickets_priority on tickets tickets_2  (cost=0.42..32.39 rows=566 width=45) (never executed)
+                    Index Cond: (priority = 'HIGH'::text)
+                    Filter: ((status <> 'OPEN'::text) AND ((assigned_to <> 123) OR (assigned_to IS NULL)))
+Execution Time: 0.084 ms
+*/
+```

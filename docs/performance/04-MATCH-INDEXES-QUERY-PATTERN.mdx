@@ -1,0 +1,134 @@
+---
+title: Match indexes to real query patterns
+description: Make your query predicate benefit indexes.
+---
+
+# Match indexes to real query patterns
+
+## Query
+
+```sql
+SELECT *
+FROM invoices
+WHERE customer_id = 42
+  AND status = 'OPEN'
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+---
+
+## Slow <Turtle strokeWidth={1.75} />
+This is weak index because it doesn't match the query pattern.
+
+```sql
+CREATE INDEX idx_customer
+ON invoices(customer_id);
+```
+
+---
+
+## Fast <Rabbit strokeWidth={1.75}/>
+This is a strong index because it matches the query pattern.
+```sql
+CREATE INDEX idx_customer_status_created
+ON invoices(customer_id, status, created_at DESC);
+```
+
+---
+
+## Why <Search strokeWidth={1.75}/>
+
+This allows PostgreSQL to stop scanning early.
+Think of it as aligning with: `WHERE + ORDER BY + LIMIT`.
+
+This is shorthand, not literal index syntax. It means:
+
+- Include `WHERE` columns that are selective and commonly filtered.
+- Include `ORDER BY` columns in the correct order/direction.
+- This makes `LIMIT` fast because the engine can stop after N rows.
+
+`LIMIT` is not part of the index definition; it allows the engine to stop scanning after N rows.
+
+---
+
+## Typical Improvement <Settings strokeWidth={1.75}/>
+
+`10x+`, especially for dashboards and "latest N rows" queries.
+
+---
+
+## Best Use Cases <BookOpen strokeWidth={1.75}/>
+
+- Customer activity feeds
+- Top-N queries
+- Open items / latest items screens
+- Event logs
+
+## Test it out yourself <TestTubeDiagonal strokeWidth={1.75}/>
+
+### 1. Set up Docker Database
+Run a local Docker instance with PostgreSQL 18:
+
+```bash
+docker run --name pg18-test -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:18-alpine
+```
+
+### 2. Create Schema and Sample Data
+Run this script to create the `invoices` table and generate sample data:
+> User: postgres
+> Password: postgres
+
+```sql
+CREATE TABLE invoices (
+    id SERIAL PRIMARY KEY,
+    customer_id INT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    amount DECIMAL(10,2)
+);
+
+-- Generate 1,000,000 invoices
+INSERT INTO invoices (customer_id, status, created_at, amount)
+SELECT
+    (random() * 1000 + 1)::int,
+    CASE WHEN random() < 0.1 THEN 'OPEN' ELSE 'PAID' END,
+    NOW() - (random() * interval '365 days'),
+    (random() * 1000)::numeric(10,2)
+FROM generate_series(1, 1000000);
+```
+
+### 3. Test the Performance
+
+#### Slow (Weak Index) <Turtle strokeWidth={1.75} />
+First, create only a single-column index:
+```sql
+CREATE INDEX idx_customer ON invoices(customer_id);
+
+-- Test the query
+EXPLAIN ANALYZE
+SELECT *
+FROM invoices
+WHERE customer_id = 42
+  AND status = 'OPEN'
+ORDER BY created_at DESC
+LIMIT 50;
+
+-- Drop it for the next test
+DROP INDEX idx_customer;
+```
+
+#### Fast (Strong Composite Index) <Rabbit strokeWidth={1.75}/>
+Now, create a composite index that matches the `WHERE + ORDER BY` pattern:
+```sql
+CREATE INDEX idx_customer_status_created ON invoices(customer_id, status, created_at DESC);
+
+-- Test the same query
+EXPLAIN ANALYZE
+SELECT *
+FROM invoices
+WHERE customer_id = 42
+  AND status = 'OPEN'
+ORDER BY created_at DESC
+LIMIT 50;
+```

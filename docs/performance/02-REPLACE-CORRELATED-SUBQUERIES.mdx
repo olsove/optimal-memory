@@ -1,0 +1,119 @@
+---
+title: Replace correlated sub-queries with aggregation + join
+description: Avoid making these mistakes in your production code.
+---
+
+# Replace correlated sub-queries with aggregation + join
+
+## Slow <Turtle strokeWidth={1.75} />
+
+```sql
+SELECT c.id,
+       (SELECT MAX(created_at)
+        FROM orders o
+        WHERE o.customer_id = c.id)
+FROM customers c;
+```
+
+---
+
+## Fast <Rabbit strokeWidth={1.75}/>
+
+```sql
+SELECT c.id, o.last_order
+FROM customers c
+LEFT JOIN (
+    SELECT customer_id, MAX(created_at) AS last_order
+    FROM orders
+    GROUP BY customer_id
+) o
+ON o.customer_id = c.id;
+```
+
+---
+
+## Why <Search strokeWidth={1.75}/>
+
+The slow version runs the sub-query once per row.
+The fast version calculates it once.
+
+---
+
+## Typical Improvement <Settings strokeWidth={1.75}/>
+
+`10x+`
+
+---
+
+## Best Use Cases <BookOpen strokeWidth={1.75}/>
+
+- "Latest per customer"
+- Counts per parent
+- Summary fields in reports
+- ORM-generated queries
+
+## Test it out yourself <TestTubeDiagonal strokeWidth={1.75}/>
+
+### 1. Set up Docker Database
+Run a local Docker instance with PostgreSQL 18:
+
+```bash
+docker run --name pg18-test -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:18-alpine
+```
+
+### 2. Create Schema and Sample Data
+Run this script to create the `customers` and `orders` tables and generate sample data:
+> User: postgres
+> Password: postgres
+
+```sql
+CREATE TABLE customers (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL
+);
+
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    customer_id INT REFERENCES customers(id),
+    created_at TIMESTAMP NOT NULL
+);
+
+-- Generate 10,000 customers
+INSERT INTO customers (name)
+SELECT 'Customer ' || i
+FROM generate_series(1, 10000) i;
+
+-- Generate 500,000 orders
+INSERT INTO orders (customer_id, created_at)
+SELECT
+    (random() * 9999 + 1)::int,
+    NOW() - (random() * interval '365 days')
+FROM generate_series(1, 500000);
+
+CREATE INDEX idx_orders_customer_id ON orders(customer_id);
+```
+
+### 3. Test the Performance
+
+#### Slow (Correlated Sub-query) <Turtle strokeWidth={1.75} />
+```sql
+EXPLAIN ANALYZE
+SELECT c.id,
+       (SELECT MAX(created_at)
+        FROM orders o
+        WHERE o.customer_id = c.id)
+FROM customers c;
+```
+
+#### Fast (Aggregation + Join) <Rabbit strokeWidth={1.75}/>
+```sql
+EXPLAIN ANALYZE
+SELECT c.id, o.last_order
+FROM customers c
+LEFT JOIN (
+    SELECT customer_id, MAX(created_at) AS last_order
+    FROM orders
+    GROUP BY customer_id
+) o
+ON o.customer_id = c.id;
+```

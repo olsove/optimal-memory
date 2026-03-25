@@ -61,6 +61,7 @@ Provide context for the agents.
 - React
 - Typescript
 - Pnpm
+- Vercel
 
 ## Documentation Standards
 - Use Markdown with GitHub Flavoured Markdown features where helpful.

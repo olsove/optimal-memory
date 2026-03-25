@@ -1,0 +1,110 @@
+---
+title: Avoid select all on large tables.
+description: Don't select columns that you dont need.
+---
+
+# Avoid `SELECT *` on large tables
+
+## Slow <Turtle strokeWidth={1.75} />
+
+```sql
+SELECT *
+FROM orders
+WHERE customer_id = 123;
+```
+
+---
+
+## Fast <Rabbit strokeWidth={1.75}/>
+
+Select only required columns:
+
+```sql
+SELECT order_id, order_date, total_amount, status
+FROM orders
+WHERE customer_id = 123;
+```
+
+---
+
+## Why <Search strokeWidth={1.75}/>
+
+Reading unnecessary columns increases:
+
+- Disk I/O
+- Memory usage
+- Network transfer
+
+---
+
+## Typical Improvement <Settings strokeWidth={1.75}/>
+
+`2x-20x`
+
+---
+
+## Best Use Cases <BookOpen strokeWidth={1.75}/>
+
+- REST API endpoints
+- Microservice data access
+- Wide tables with JSON or text columns
+- Dashboards retrieving lists of records
+
+## Test it out yourself <TestTubeDiagonal strokeWidth={1.75}/>
+
+### 1. Set up Docker Database
+Run a local Docker instance with PostgreSQL 18:
+
+```bash
+docker run --name pg18-test -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:18-alpine
+```
+
+### 2. Create Schema and Sample Data
+Run this script to create a "wide" table with large columns and generate sample data:
+> User: postgres
+> Password: postgres
+
+```sql
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    customer_id INT NOT NULL,
+    order_date TIMESTAMP NOT NULL,
+    total_amount DECIMAL(10,2),
+    status TEXT,
+    internal_notes TEXT, -- Large column
+    raw_payload JSONB   -- Large column
+);
+
+-- Generate 100,000 orders with some large data
+INSERT INTO orders (customer_id, order_date, total_amount, status, internal_notes, raw_payload)
+SELECT
+    (random() * 1000 + 1)::int,
+    NOW() - (random() * interval '365 days'),
+    (random() * 1000)::numeric(10,2),
+    'COMPLETED',
+    repeat('This is a very long internal note that takes up space. ', 20),
+    '{"meta": "some very large json object with lots of data", "data": [1,2,3,4,5,6,7,8,9,0]}'::jsonb
+FROM generate_series(1, 100000);
+
+CREATE INDEX idx_orders_customer_id ON orders(customer_id);
+```
+
+### 3. Test the Performance
+
+#### Slow (SELECT *) <Turtle strokeWidth={1.75} />
+This forces the database to read all columns from disk, including the large `internal_notes` and `raw_payload`.
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT *
+FROM orders
+WHERE customer_id = 123;
+```
+
+#### Fast (SELECT specific columns) <Rabbit strokeWidth={1.75}/>
+This only reads the columns you actually need, reducing I/O and memory usage.
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT id, order_date, total_amount, status
+FROM orders
+WHERE customer_id = 123;
+```

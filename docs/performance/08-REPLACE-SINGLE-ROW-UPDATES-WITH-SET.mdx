@@ -1,0 +1,144 @@
+---
+title: Replace row-by-row updates with set-based operations.
+description: Do more with less.
+---
+
+# Replace row-by-row updates with set-based operations
+
+## Slow <Turtle strokeWidth={1.75} />
+
+Application loops through rows:
+
+```sql
+UPDATE orders SET status = 'ARCHIVED' WHERE id = 101;
+UPDATE orders SET status = 'ARCHIVED' WHERE id = 102;
+UPDATE orders SET status = 'ARCHIVED' WHERE id = 103;
+```
+
+---
+
+## Fast <Rabbit strokeWidth={1.75}/>
+
+Update rows in one operation:
+
+```sql
+UPDATE orders o
+SET status = 'ARCHIVED'
+FROM archived_customers a
+WHERE o.customer_id = a.customer_id;
+```
+
+---
+
+## Why <Search strokeWidth={1.75}/>
+
+PostgreSQL is optimised for set operations, not loops.
+Set-based updates reduce:
+
+- Planning overhead: The "Slow" query is planned 100 times.
+- Network round-trips: 100 separate requests from the application to the database.
+- Data access efficiency: The "Fast" query uses a `Merge Join` to process 10,000 rows in one sweep, whereas the "Slow" query repeats index lookups 100 times.
+
+Even though 68 ms is more than 1 ms, doing 68 ms once is much faster than doing 1 ms one hundred times plus overhead.
+
+---
+
+## Typical Improvement <Settings strokeWidth={1.75}/>
+
+`10x-100x`
+
+---
+
+## Best Use Cases <BookOpen strokeWidth={1.75}/>
+
+- Batch processing jobs
+- Nightly maintenance tasks
+- Data migration scripts
+- Background worker jobs
+
+## Test it out yourself <TestTubeDiagonal strokeWidth={1.75}/>
+
+### 1. Set up Docker Database
+Run a local Docker instance with PostgreSQL 18:
+
+```bash
+docker run --name pg18-test -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:18-alpine
+```
+
+### 2. Create Schema and Sample Data
+Run this script to create the `orders` and `archived_customers` tables and generate sample data:
+> User: postgres
+> Password: postgres
+
+```sql
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    customer_id INT NOT NULL,
+    status TEXT NOT NULL
+);
+
+CREATE TABLE archived_customers (
+    customer_id INT PRIMARY KEY
+);
+
+-- Generate 100,000 orders
+INSERT INTO orders (customer_id, status)
+SELECT (random() * 1000 + 1)::int, 'ACTIVE'
+FROM generate_series(1, 100000);
+
+-- Archive 100 customers
+INSERT INTO archived_customers (customer_id)
+SELECT i FROM generate_series(1, 100) i;
+
+CREATE INDEX idx_orders_customer_id ON orders(customer_id);
+```
+
+### 3. Test the Performance
+
+#### Slow (Row-by-row) <Turtle strokeWidth={1.75} />
+Updating each customer one by one (simulated here) appears fast for a single query, but the cumulative overhead is high.
+
+```sql
+-- In a real application, this would be many separate UPDATE calls.
+EXPLAIN ANALYZE
+UPDATE orders SET status = 'ARCHIVED' WHERE customer_id = 1;
+
+/*
+QUERY PLAN
+Update on orders  (cost=5.05..256.15 rows=0 width=0) (actual time=0.918..0.919 rows=0.00 loops=1)
+    Buffers: shared hit=576 read=2 dirtied=65
+    ->  Bitmap Heap Scan on orders  (cost=5.05..256.15 rows=98 width=38) (actual time=0.043..0.107 rows=58.00 loops=1)
+    Recheck Cond: (customer_id = 1)
+    Heap Blocks: exact=57
+    Buffers: shared hit=57 read=2
+    ->  Bitmap Index Scan on idx_orders_customer_id  (cost=0.00..5.03 rows=98 width=0) (actual time=0.029..0.030 rows=58.00 loops=1)
+    Index Cond: (customer_id = 1)
+    Execution Time: 1.043 ms
+*/
+```
+
+#### Fast (Set-based) <Rabbit strokeWidth={1.75}/>
+A single set-based update processes all 100 customers and nearly 10,000 rows in one efficient plan.
+
+```sql
+EXPLAIN ANALYZE
+UPDATE orders o
+SET status = 'ARCHIVED'
+FROM archived_customers a
+WHERE o.customer_id = a.customer_id;
+
+/*
+QUERY PLAN
+Update on orders o  (cost=5.61..528.14 rows=0 width=0) (actual time=68.291..68.292 rows=0.00 loops=1)
+  Buffers: shared hit=89530 read=9 dirtied=844 written=78
+  ->  Merge Join  (cost=5.61..528.14 rows=9990 width=44) (actual time=0.047..5.453 rows=9929.00 loops=1)
+        Merge Cond: (o.customer_id = a.customer_id)
+        Buffers: shared hit=9092
+        ->  Index Scan using idx_orders_customer_id on orders o  (cost=0.29..4020.19 rows=100000 width=10) (actual time=0.013..4.345 rows=9930.00 loops=1)
+        ->  Sort  (cost=5.32..5.57 rows=100 width=10) (actual time=0.032..0.051 rows=100.00 loops=1)
+              Sort Key: a.customer_id
+              Sort Method: quicksort  Memory: 28kB
+              ->  Seq Scan on archived_customers a  (cost=0.00..2.00 rows=100 width=10) (actual time=0.006..0.011 rows=100.00 loops=1)
+Execution Time: 68.332 ms
+*/
+```
