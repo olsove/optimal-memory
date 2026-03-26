@@ -305,4 +305,10 @@ export const TocData: TocData = {
       href: '/docs/performance/10-AGGREGATE-SORT-LESS-DATA#test-it-out-yourself-',
     },
   ],
+  'template/about': [
+    {
+      title: 'About',
+      href: '/docs/template/about',
+    },
+  ],
 };

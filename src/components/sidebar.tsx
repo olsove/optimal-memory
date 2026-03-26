@@ -526,9 +526,9 @@ export function SidebarHeaderTitle({
   ...props
 }: React.HTMLAttributes<HTMLHeadElement>) {
   return (
-    <h1
+    <h2
       className={cn(
-        'text-3xl font-stretch-110% -tracking-tighter text-black dark:text-white truncate',
+        'text-lg font-semibold -tracking-tight text-black dark:text-white truncate',
         className
       )}
       {...props}

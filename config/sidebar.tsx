@@ -1,4 +1,4 @@
-import { Rocket, Wrench } from 'lucide-react';
+import {LayoutTemplate, Rocket, Wrench} from 'lucide-react';
 
 export const sidebarNav = [
   {
@@ -63,5 +63,11 @@ export const sidebarNav = [
         href: '/docs/performance/10-AGGREGATE-SORT-LESS-DATA',
       },
     ],
+  },
+  {
+    title: 'Template',
+    icon: <LayoutTemplate className="h-5 w-5" />,
+    defaultOpen: true,
+    href: '/docs/template/about',
   },
 ];

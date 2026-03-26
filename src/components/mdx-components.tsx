@@ -11,6 +11,7 @@ import Stepper from '@/components/vertical-stepper';
 import { Step, Steps, StepTitle, StepContent } from '@/components/step';
 import { Button } from '@/components/button';
 import { Menu, MenuItem, MenuTrigger, PopMenu } from '@/components/menu';
+import Image from 'next/image';
 import {
   NavMenu,
   NavMenuItem,
@@ -60,7 +61,9 @@ import {
   Paintbrush,
   Rabbit,
   TestTubeDiagonal,
-  Smile
+  Smile,
+  Database,
+  LayoutTemplate
 } from 'lucide-react';
 import {
   Select,
@@ -321,6 +324,8 @@ const components = {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  Image,
+  LayoutTemplate
 };
 
 interface Mdxchildren {

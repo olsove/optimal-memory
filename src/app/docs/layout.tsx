@@ -29,6 +29,9 @@ import Header from '@/components/header';
 import { ModeToggle } from '@/components/mode-toggle';
 import { Button } from '@/components/button';
 import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  Database
+} from 'lucide-react';
 
 export default function DocsLayout({
   children,
@@ -38,6 +41,8 @@ export default function DocsLayout({
   // Destructure sidebarNav from configDocs
   const router = useRouter();
   const isMobile = useIsMobile();
+  // @ts-ignore
+  // @ts-ignore
   return (
     <SidebarLayout>
       {/* Left Sidebar Provider */}
@@ -48,25 +53,24 @@ export default function DocsLayout({
         showIconsOnCollapse={true}
       >
         <Sidebar>
-          <SidebarHeader>
-            <SidebarHeaderLogo
-              logo={
-                <Image
-                  alt="logo"
-                  className={'h-auto w-aut dark:invert'}
-                  width={100}
-                  height={100}
-                  src={`/logos/pinedocs.png`}
-                />
-              }
-            />
-
-            <Link href={'/'} className="flex flex-1 gap-3">
-              <SidebarHeaderTitle>
-                PINE<span className="text-4xl">X</span>IO
-              </SidebarHeaderTitle>
-            </Link>
-          </SidebarHeader>
+          <SidebarHeader
+            icon={
+              <SidebarHeaderLogo
+                logo={
+                  <Database
+                      className={'h-5 w-5'}
+                  />
+                }
+              />
+            }
+            label={
+              <Link href={'/'} className="flex flex-1 gap-1">
+                <SidebarHeaderTitle>
+                  SQL Performance
+                </SidebarHeaderTitle>
+              </Link>
+            }
+          />
           <SidebarContent>
             {sidebarNav.map((section) => (
               <SidebarMenuItem

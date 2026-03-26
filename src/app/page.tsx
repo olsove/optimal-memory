@@ -39,7 +39,9 @@ export default function Home() {
           transition={{ duration: 0.6 }}
           className="container mx-auto flex flex-col items-center max-w-6xl"
         >
-          {/* Logo and Title */}
+          {/* Logo and Title                 <Database
+                    className={'h-10 w-10'}
+                />*/}
           <div className="text-center mb-8">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
