@@ -15,6 +15,20 @@ type TocData = {
 
 // Your TocData object with the correct types
 export const TocData: TocData = {
+  'getting-started/introduction':[
+    {
+      title: 'When it comes to performance, where do developers go wrong?',
+      href: '/docs/getting-started/introduction#when-it-comes-to-performance-where-do-developers-go-wrong',
+    },
+    {
+      title: 'Prerequisites for understanding the content on this site',
+      href: '/docs/getting-started/introduction#prerequisites-for-understanding-the-content-on-this-site',
+    },
+    {
+      title: 'I hope you enjoy reading this guide!',
+      href: '/docs/getting-started/introduction#i-hope-you-enjoy-reading-this-guide',
+    }
+  ],
   'performance/README': [
     {
       title: 'The goal',

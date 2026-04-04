@@ -10,10 +10,6 @@ export const sidebarNav = [
         title: 'Introduction',
         href: '/docs/getting-started/introduction',
       },
-      {
-        title: 'Quick Start',
-        href: '/docs/getting-started/quick-start',
-      },
     ],
   },
   {
