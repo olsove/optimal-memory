@@ -63,7 +63,8 @@ import {
   TestTubeDiagonal,
   Smile,
   Database,
-  LayoutTemplate
+  LayoutTemplate,
+  Lightbulb
 } from 'lucide-react';
 import {
   Select,
@@ -325,7 +326,9 @@ const components = {
   DialogFooter,
   DialogHeader,
   Image,
-  LayoutTemplate
+  LayoutTemplate,
+  Lightbulb,
+  Database
 };
 
 interface Mdxchildren {
