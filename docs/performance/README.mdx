@@ -9,6 +9,8 @@ description: Avoid making these mistakes in your production code.
 
 ## The goal
 
+__It's mentioned in the introduction, but it's worth repeating__
+
 Most slow queries happen because they:
 
 - Scan too many rows
@@ -45,7 +47,7 @@ Take a look at the subpages below for insight in how to write better queries:
 
 In self-managed PostgreSQL you can sometimes compensate with server tuning.
 
-In Cloud SQL, you have less control over:
+In Google Cloud SQL, or any cloud really,  you have less control over:
 
 - Disk configuration
 - I/O scheduling
@@ -59,7 +61,7 @@ So inefficient queries quickly cause:
 - CPU bottlenecks
 - Larger instance requirements
 
-Which means higher cost and worse performance.
+Which means *higher cost and worse performance*.
 
 ---
 
