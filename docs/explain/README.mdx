@@ -71,3 +71,8 @@ Look for:
 - **Compare Estimates vs. Reality**: If the `estimated rows` are significantly different from the `actual rows` in `EXPLAIN ANALYZE`, your table statistics might be outdated. Run `ANALYZE table_name;`.
 - **Look for "Filter"**: A filter after a `Seq Scan` means the database is reading all rows and then discarding those that don't match. An index could avoid this.
 - **Identify Bottlenecks**: Look for the nodes with the highest `actual time` to find where the query is spending most of its time.
+
+---
+
+## References
+- [PostgreSQL Explain Documentation](https://www.postgresql.org/docs/current/sql-explain.html)
