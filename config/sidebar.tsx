@@ -1,16 +1,17 @@
-import {LayoutTemplate, Rocket, Wrench} from 'lucide-react';
+import {LayoutTemplate, Lightbulb, Rocket, Wrench} from 'lucide-react';
 
 export const sidebarNav = [
   {
     title: 'Getting Started',
     icon: <Rocket className="h-5 w-5" />,
     defaultOpen: true,
-    pages: [
-      {
-        title: 'Introduction',
-        href: '/docs/getting-started/introduction',
-      },
-    ],
+    href: '/docs/getting-started/introduction',
+  },
+  {
+    title: 'Explain',
+    icon: <Lightbulb className="h-5 w-5" />,
+    defaultOpen: true,
+    href: '/docs/explain/README',
   },
   {
     title: 'Performance Cheats',

@@ -29,6 +29,24 @@ export const TocData: TocData = {
       href: '/docs/getting-started/introduction#i-hope-you-enjoy-reading-this-guide',
     }
   ],
+  'explain/README':[
+    {
+      title: 'How to interpret the explain output',
+      href: '/docs/explain/README#how-to-interpret-the-explain-output-',
+    },
+    {
+      title: 'Explain Analyze',
+      href: '/docs/explain/README#explain-analyze-',
+    },
+    {
+      title: 'Using buffers',
+      href: '/docs/explain/README#using-buffers-',
+    },
+    {
+      title: 'Quick tips',
+      href: '/docs/explain/README#quick-tips-',
+    }
+  ],
   'performance/README': [
     {
       title: 'The goal',

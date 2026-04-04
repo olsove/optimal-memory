@@ -1,0 +1,73 @@
+---
+title: Explain
+description: How to explain SQL in the database
+---
+
+# How to explain the performance of your SQL
+
+Have you ever wondered how your SQL is performing?
+
+You can use the `EXPLAIN` command to get a detailed breakdown of the query plan. This allows you to understand how the database engine executes your query and identify potential bottlenecks.
+
+## How to interpret the explain output <Search strokeWidth={1.75}/>
+
+When you run `EXPLAIN`, PostgreSQL returns a query plan consisting of a tree of nodes. Each node represents a single operation in the execution process.
+
+### Core Metrics
+
+- **cost**: A unitless measure representing the estimated effort to execute the operation.
+  - `0.00..10.00`: The first value is the start-up cost (time to first row), and the second is the total cost.
+- **rows**: The estimated number of rows that the operation will return.
+- **width**: The estimated average size of rows in bytes.
+
+### Common Operation Types
+
+1.  **Seq Scan**: A full table scan. This can be slow for large tables.
+2.  **Index Scan**: Uses an index to find specific rows. Generally much faster than a `Seq Scan`.
+3.  **Index Only Scan**: Retrieves data directly from the index without visiting the main table.
+4.  **Nested Loop**: Joins two tables by iterating through each row of the first and looking up matches in the second.
+5.  **Hash Join**: Builds a hash table for the smaller table to quickly find matching rows in the larger table.
+
+---
+
+## Explain Analyze <TestTubeDiagonal strokeWidth={1.75}/>
+
+While `EXPLAIN` only shows estimates, `EXPLAIN ANALYZE` actually **executes** the query and provides real-time statistics.
+
+```sql
+EXPLAIN ANALYZE
+SELECT * FROM users WHERE email = 'alice@example.com';
+```
+
+**Warning:** Since `EXPLAIN ANALYZE` executes the query, be careful when using it with `INSERT`, `UPDATE`, or `DELETE` on production data. Wrap it in a transaction if you need to rollback the changes:
+
+```sql
+BEGIN;
+EXPLAIN ANALYZE UPDATE users SET active = true WHERE last_login < '2025-01-01';
+ROLLBACK;
+```
+
+---
+
+## Using Buffers <Database strokeWidth={1.75}/>
+
+To see the impact on I/O, use the `BUFFERS` option. This shows how many blocks were read from disk or found in the cache (shared hit).
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM orders WHERE customer_id = 123;
+```
+
+Look for:
+- **Shared Hit**: Data found in the PostgreSQL buffer cache (fast).
+- **Read**: Data read from disk (slow).
+- **Written**: Data written to disk (e.g., during a large sort).
+
+---
+
+## Quick Tips <Lightbulb strokeWidth={1.75}/>
+
+- **Check for Seq Scans**: If you see a `Seq Scan` on a large table, consider adding an index.
+- **Compare Estimates vs. Reality**: If the `estimated rows` are significantly different from the `actual rows` in `EXPLAIN ANALYZE`, your table statistics might be outdated. Run `ANALYZE table_name;`.
+- **Look for "Filter"**: A filter after a `Seq Scan` means the database is reading all rows and then discarding those that don't match. An index could avoid this.
+- **Identify Bottlenecks**: Look for the nodes with the highest `actual time` to find where the query is spending most of its time.
