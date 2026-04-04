@@ -31,7 +31,7 @@ export default function Home() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-grow flex flex-col justify-center items-center px-4 py-4 md:py-8">
+      <main className="grow flex flex-col justify-center items-center px-4 py-4 md:py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
